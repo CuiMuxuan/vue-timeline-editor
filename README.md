@@ -177,43 +177,6 @@ npm install
 npm run dev
 ```
 
-## 构建
-
-构建 npm 包：
-
-```bash
-npm run build
-```
-
-构建 GitHub Pages 演示站点：
-
-```bash
-npm run build:demo
-```
-
-## 发布到 npm
-
-1. 登录 npm：
-
-```bash
-npm login
-```
-
-2. 构建并发布（公开包）：
-
-```bash
-npm publish --access public
-```
-
-如果 `vue-timeline-editor` 名称已被占用，可改用：`@cuimuxuan/vue-timeline-editor`。
-
-## GitHub Pages 部署
-
-仓库已内置工作流：`.github/workflows/deploy-pages.yml`
-
-- 推送到 `main` 分支后自动部署演示站点。
-- 首次需要在 GitHub 仓库设置中确认：
-  - `Settings` -> `Pages` -> `Build and deployment` -> `Source: GitHub Actions`
 
 ## 开源协议
 
