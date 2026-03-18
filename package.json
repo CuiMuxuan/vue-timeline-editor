@@ -1,0 +1,70 @@
+{
+  "name": "vue-timeline-editor",
+  "version": "0.1.0",
+  "description": "A Vue 3 timeline editor component with drag, resize, snap, and playback controls.",
+  "license": "MIT",
+  "private": false,
+  "type": "module",
+  "author": "CuiMuxuan",
+  "homepage": "https://github.com/CuiMuxuan/vue-timeline-editor",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CuiMuxuan/vue-timeline-editor.git"
+  },
+  "bugs": {
+    "url": "https://github.com/CuiMuxuan/vue-timeline-editor/issues"
+  },
+  "keywords": [
+    "vue",
+    "timeline",
+    "timeline-editor",
+    "video-editor",
+    "animation"
+  ],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "main": "./dist/vue-timeline-editor.umd.js",
+  "module": "./dist/vue-timeline-editor.es.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/vue-timeline-editor.es.js",
+      "require": "./dist/vue-timeline-editor.umd.js"
+    },
+    "./style.css": "./dist/vue-timeline-editor.css",
+    "./dist/vue-timeline-editor.css": "./dist/vue-timeline-editor.css"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "npm run build:lib",
+    "build:lib": "npm run typecheck && vite build",
+    "build:demo": "vite build --mode demo",
+    "preview": "vite preview",
+    "preview:demo": "vite preview --outDir dist-demo",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.app.json",
+    "prepublishOnly": "npm run build"
+  },
+  "peerDependencies": {
+    "vue": "^3.4.0"
+  },
+  "dependencies": {
+    "@vueuse/core": "^14.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.0",
+    "@vitejs/plugin-vue": "^6.0.5",
+    "@vue/tsconfig": "^0.9.0",
+    "typescript": "~5.9.3",
+    "vite": "^8.0.0",
+    "vite-plugin-dts": "^4.5.4",
+    "vue": "^3.5.30",
+    "vue-tsc": "^3.2.5"
+  }
+}
