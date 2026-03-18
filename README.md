@@ -12,6 +12,7 @@
 - 支持 Action 拖拽移动、左右缩放、跨轨道移动
 - 支持播放、暂停、时间游标拖拽
 - 支持网格吸附（`gridSnap`）和辅助线吸附（`dragLine`）
+- 支持轨道行拖拽排序（`enableRowDrag`）
 - 支持通过插槽自定义刻度与 Action 渲染
 - 支持丰富事件回调（移动、缩放、点击、滚动、时间更新等）
 - 内置 TypeScript 类型
@@ -127,7 +128,7 @@ import 'vue-timeline-editor/style.css'
 
 ### `TimelineOptions`
 
-常用字段：`scale`、`scaleWidth`、`scaleSplitCount`、`startLeft`、`rowHeight`、`minScaleCount`、`maxScaleCount`、`duration`、`gridSnap`、`dragLine`、`hideCursor`，以及颜色配置项。
+常用字段：`scale`、`scaleWidth`、`scaleSplitCount`、`startLeft`、`enableRowDrag`、`rowHeight`、`minScaleCount`、`maxScaleCount`、`duration`、`gridSnap`、`dragLine`、`hideCursor`，以及颜色配置项。
 
 ## 组件 Props
 
@@ -159,6 +160,8 @@ import 'vue-timeline-editor/style.css'
 - `click-row`
 - `double-click-row`
 - `context-menu-row`
+- `row-drag-start`
+- `row-drag-end`
 
 ## 暴露方法（通过 `ref`）
 

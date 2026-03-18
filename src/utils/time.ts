@@ -5,6 +5,7 @@ export const DEFAULT_OPTIONS: Required<TimelineOptions> = {
   scaleSplitCount: 10,
   scaleWidth: 160,
   startLeft: 20,
+  enableRowDrag: false,
   rowHeight: 32,
   minScaleCount: 20,
   maxScaleCount: Infinity,

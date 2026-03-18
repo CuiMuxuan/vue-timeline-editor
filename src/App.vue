@@ -15,7 +15,7 @@
         <label>Scale <input type="number" v-model.number="scale" min="0.1" step="0.1" /></label>
         <label>Scale Width <input type="number" v-model.number="scaleWidth" min="40" step="10" /></label>
         <label>Split Count <input type="number" v-model.number="scaleSplitCount" min="1" step="1" /></label>
-        <label>Start Left <input type="number" v-model.number="startLeft" min="0" step="1" /></label>
+        <label>Start Left <input type="number" v-model.number="startLeft" :min="enableRowDrag ? 24 : 0" step="1" /></label>
         <label>Row Height <input type="number" v-model.number="rowHeight" min="24" step="1" /></label>
         <label>Min Scale Count <input type="number" v-model.number="minScaleCount" min="1" step="1" /></label>
         <label>Max Scale Count(0=∞) <input type="number" v-model.number="maxScaleCountInput" min="0" step="1" /></label>
@@ -38,12 +38,18 @@
         <label>TimeCursor 颜色 <input type="color" v-model="cursorColor" /></label>
         <label>辅助线颜色 <input type="color" v-model="snapLineColor" /></label>
         <label>Action 颜色 <input type="color" v-model="actionColor" /></label>
+        <label class="inline-check">
+          <input type="checkbox" v-model="enableRowDrag" />
+          启用行拖拽
+        </label>
       </div>
 
       <div class="toolbar-group">
         <button @click="openAddActionPanel">新增 Action</button>
         <button :disabled="!selectedAction" @click="deleteSelectedAction">删除选中 Action</button>
+        <button @click="exportOptionsConfig">导出 options 配置</button>
         <span v-if="selectedAction">已选中：{{ selectedAction.rowId }}/{{ selectedAction.actionId }}</span>
+        <span v-if="rowDragMessage" class="row-drag-status">{{ rowDragMessage }}</span>
       </div>
     </div>
 
@@ -84,6 +90,8 @@
         @pause="isPlaying = false"
         @click-action="handleClickAction"
         @click-row="clearSelection"
+        @row-drag-start="handleRowDragStart"
+        @row-drag-end="handleRowDragEnd"
       >
         <template #action="{ action }">
           <div class="action-label">{{ action.data?.label || action.id }}</div>
@@ -114,6 +122,7 @@ const maxScaleCountInput = ref(0);
 const durationInput = ref(0);
 const gridSnap = ref(true);
 const dragLine = ref(true);
+const enableRowDrag = ref(false);
 
 const backgroundColor = ref('#1e1e1e');
 const contentBackgroundColor = ref('#1a1a1a');
@@ -122,6 +131,8 @@ const gridColor = ref('#2a2a2a');
 const cursorColor = ref('#ff4d4f');
 const snapLineColor = ref('#fadb14');
 const actionColor = ref('#3e82f7');
+
+const rowDragMessage = ref('');
 
 const data = ref<TimelineRow[]>([
   {
@@ -150,6 +161,12 @@ const effects: Record<string, TimelineEffect> = {
 
 const effectIds = computed(() => Object.keys(effects));
 
+watch(enableRowDrag, (enabled) => {
+  if (enabled && startLeft.value < 24) {
+    startLeft.value = 24;
+  }
+});
+
 const options = computed<TimelineOptions>(() => ({
   scale: scale.value,
   scaleWidth: scaleWidth.value,
@@ -161,6 +178,7 @@ const options = computed<TimelineOptions>(() => ({
   duration: durationInput.value > 0 ? durationInput.value : 0,
   gridSnap: gridSnap.value,
   dragLine: dragLine.value,
+  enableRowDrag: enableRowDrag.value,
   backgroundColor: backgroundColor.value,
   contentBackgroundColor: contentBackgroundColor.value,
   borderColor: borderColor.value,
@@ -202,6 +220,30 @@ function handlePlayOrPause() {
 function handleStop() {
   timelineRef.value?.pause();
   timelineRef.value?.setTime(0);
+}
+
+function handleRowDragStart(params: { row: TimelineRow }) {
+  rowDragMessage.value = `开始拖拽轨道 ${params.row.id}`;
+}
+
+function handleRowDragEnd(params: { row: TimelineRow; editorData: TimelineRow[] }) {
+  rowDragMessage.value = `轨道 ${params.row.id} 拖拽结束，当前轨道数：${params.editorData.length}`;
+}
+
+function exportOptionsConfig() {
+  const content = JSON.stringify(options.value, null, 2);
+  const blob = new Blob([content], { type: 'application/json;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+
+  link.href = url;
+  link.download = `vue-timeline-editor-options-${timestamp}.json`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  URL.revokeObjectURL(url);
 }
 
 function findFirstAvailableStart(actions: TimelineAction[], duration: number) {
@@ -404,6 +446,10 @@ function deleteSelectedAction() {
 
 .inline-check {
   gap: 4px;
+}
+
+.row-drag-status {
+  color: #9ad6ff;
 }
 
 .add-panel {

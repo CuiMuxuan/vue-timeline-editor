@@ -50,6 +50,7 @@ export interface TimelineOptions {
   scaleSplitCount?: number; // Subdivisions (default 10)
   scaleWidth?: number; // Width of one scale unit in px (default 160)
   startLeft?: number; // Padding left (default 20)
+  enableRowDrag?: boolean; // Enable row sorting by drag handle
   rowHeight?: number; // Default row height (default 32)
   minScaleCount?: number; // Min scales to render
   maxScaleCount?: number; // Max scales to render

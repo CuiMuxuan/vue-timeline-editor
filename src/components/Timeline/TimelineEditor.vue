@@ -10,8 +10,25 @@
 
     <div class="timeline-body" ref="bodyRef" @scroll="onScroll">
       <div class="timeline-content" :style="{ width: totalWidth + 'px' }">
-        <div v-for="row in modelValue" :key="row.id" class="timeline-row-wrapper">
+        <div
+          v-for="row in renderedRows"
+          :key="row.id"
+          class="timeline-row-wrapper"
+          :class="{ 'is-row-drag-placeholder': isRowDragPlaceholder(row.id) }"
+        >
           <TimelineRow :rowData="row">
+            <template #action="{ action }">
+              <slot name="action" :action="action"></slot>
+            </template>
+          </TimelineRow>
+        </div>
+
+        <div
+          v-if="rowDragState.active && rowDragState.row"
+          class="timeline-row-ghost"
+          :style="rowGhostStyle"
+        >
+          <TimelineRow :rowData="rowDragState.row" :ghost="true">
             <template #action="{ action }">
               <slot name="action" :action="action"></slot>
             </template>
@@ -39,7 +56,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, provide, ref, toRefs } from 'vue';
+import { computed, onUnmounted, provide, ref, toRefs } from 'vue';
 import { useElementSize } from '@vueuse/core';
 import type { TimelineAction, TimelineEffect, TimelineOptions, TimelineRow as TimelineRowData } from '../../interface/common';
 import { DEFAULT_OPTIONS, getDurationByWidth, getMaxActionEnd, pixelToTime, timeToPixel } from '../../utils/time';
@@ -53,6 +70,19 @@ interface UpdateActionPayload {
   toRowId?: string;
   commit: boolean;
 }
+
+interface RowDragState {
+  active: boolean;
+  rowId: string;
+  row: TimelineRowData | null;
+  sourceIndex: number;
+  targetIndex: number;
+  pointerOffsetY: number;
+  ghostTop: number;
+  ghostHeight: number;
+}
+
+const ROW_DRAG_MIN_START_LEFT = 24;
 
 const props = withDefaults(defineProps<{
   modelValue: TimelineRowData[];
@@ -86,19 +116,105 @@ const emit = defineEmits<{
   (e: 'click-row', event: MouseEvent, params: { row: TimelineRowData; time: number }): void;
   (e: 'double-click-row', event: MouseEvent, params: { row: TimelineRowData; time: number }): void;
   (e: 'context-menu-row', event: MouseEvent, params: { row: TimelineRowData; time: number }): void;
+  (e: 'row-drag-start', params: { row: TimelineRowData }): void;
+  (e: 'row-drag-end', params: { row: TimelineRowData; editorData: TimelineRowData[] }): void;
 }>();
 
 const { options, modelValue, autoScroll } = toRefs(props);
 
-const mergedOptions = computed(() => ({ ...DEFAULT_OPTIONS, ...options.value }));
+const mergedOptions = computed<Required<TimelineOptions>>(() => {
+  const next = { ...DEFAULT_OPTIONS, ...options.value };
+  if (next.enableRowDrag) {
+    next.startLeft = Math.max(next.startLeft, ROW_DRAG_MIN_START_LEFT);
+  }
+  return next;
+});
 
 const bodyRef = ref<HTMLElement | null>(null);
 const headerRef = ref<HTMLElement | null>(null);
+
+const rowDragState = ref<RowDragState>({
+  active: false,
+  rowId: '',
+  row: null,
+  sourceIndex: -1,
+  targetIndex: -1,
+  pointerOffsetY: 0,
+  ghostTop: 0,
+  ghostHeight: 0,
+});
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function getRowHeight(row: TimelineRowData) {
+  return row.rowHeight ?? mergedOptions.value.rowHeight;
+}
+
+function getRowsTotalHeight(rows: TimelineRowData[]) {
+  return rows.reduce((sum, row) => sum + getRowHeight(row), 0);
+}
+
+function getRowTopByIndex(rows: TimelineRowData[], index: number) {
+  return rows.slice(0, Math.max(0, index)).reduce((sum, row) => sum + getRowHeight(row), 0);
+}
+
+function getBodyRelativeY(clientY: number) {
+  if (!bodyRef.value) return 0;
+  const rect = bodyRef.value.getBoundingClientRect();
+  return clientY - rect.top + bodyRef.value.scrollTop;
+}
+
+function reorderRows(rows: TimelineRowData[], fromIndex: number, toIndex: number) {
+  if (fromIndex < 0 || fromIndex >= rows.length) return [...rows];
+
+  const nextRows = [...rows];
+  const [movedRow] = nextRows.splice(fromIndex, 1);
+  const safeToIndex = clamp(toIndex, 0, nextRows.length);
+  nextRows.splice(safeToIndex, 0, movedRow);
+  return nextRows;
+}
+
+function getInsertionIndexByCenter(centerY: number, rowsWithoutDrag: TimelineRowData[]) {
+  let cursor = 0;
+
+  for (let index = 0; index < rowsWithoutDrag.length; index += 1) {
+    const rowHeight = getRowHeight(rowsWithoutDrag[index]);
+    const midpoint = cursor + rowHeight / 2;
+    if (centerY < midpoint) {
+      return index;
+    }
+    cursor += rowHeight;
+  }
+
+  return rowsWithoutDrag.length;
+}
+
+const renderedRows = computed(() => {
+  const state = rowDragState.value;
+  if (!state.active || state.sourceIndex < 0 || state.targetIndex < 0) {
+    return modelValue.value;
+  }
+
+  return reorderRows(modelValue.value, state.sourceIndex, state.targetIndex);
+});
+
+function isRowDragPlaceholder(rowId: string) {
+  return rowDragState.value.active && rowDragState.value.rowId === rowId;
+}
+
+const rowGhostStyle = computed(() => ({
+  top: `${rowDragState.value.ghostTop}px`,
+  height: `${rowDragState.value.ghostHeight}px`,
+  width: `${totalWidth.value}px`,
+}));
 
 provide('timelineOptions', mergedOptions);
 provide('timelineRows', modelValue);
 provide('timelineBody', bodyRef);
 provide('autoScroll', autoScroll);
+provide('startRowDrag', startRowDrag);
 
 const { width: bodyWidth } = useElementSize(bodyRef);
 
@@ -292,6 +408,104 @@ function startDragCursor(e: MouseEvent) {
   window.addEventListener('mouseup', onUp);
 }
 
+function resetRowDragState() {
+  rowDragState.value = {
+    active: false,
+    rowId: '',
+    row: null,
+    sourceIndex: -1,
+    targetIndex: -1,
+    pointerOffsetY: 0,
+    ghostTop: 0,
+    ghostHeight: 0,
+  };
+}
+
+function onRowDragMove(e: MouseEvent) {
+  const state = rowDragState.value;
+  if (!state.active || !state.row) return;
+
+  const rows = modelValue.value;
+  if (!rows.length) return;
+
+  const totalHeight = getRowsTotalHeight(rows);
+  const relativeY = getBodyRelativeY(e.clientY);
+  const maxGhostTop = Math.max(0, totalHeight - state.ghostHeight);
+  const ghostTop = clamp(relativeY - state.pointerOffsetY, 0, maxGhostTop);
+  const centerY = ghostTop + state.ghostHeight / 2;
+
+  const rowsWithoutDrag = rows.filter((row) => row.id !== state.rowId);
+  const targetIndex = getInsertionIndexByCenter(centerY, rowsWithoutDrag);
+
+  rowDragState.value = {
+    ...state,
+    ghostTop,
+    targetIndex,
+  };
+}
+
+function onRowDragUp() {
+  window.removeEventListener('mousemove', onRowDragMove);
+  window.removeEventListener('mouseup', onRowDragUp);
+
+  const state = rowDragState.value;
+  if (!state.active || !state.row) {
+    resetRowDragState();
+    return;
+  }
+
+  const currentRows = modelValue.value;
+  const sourceIndex = state.sourceIndex;
+  const targetIndex = state.targetIndex;
+
+  let nextRows = currentRows;
+  if (sourceIndex >= 0 && targetIndex >= 0 && sourceIndex !== targetIndex) {
+    nextRows = reorderRows(currentRows, sourceIndex, targetIndex);
+    emit('update:modelValue', nextRows);
+    emit('change', nextRows);
+  }
+
+  const draggedRow = nextRows.find((row) => row.id === state.rowId) ?? state.row;
+  emit('row-drag-end', { row: draggedRow, editorData: nextRows });
+  resetRowDragState();
+}
+
+function startRowDrag(rowId: string, e: MouseEvent) {
+  if (!mergedOptions.value.enableRowDrag) return;
+
+  const rows = modelValue.value;
+  if (rows.length <= 1) return;
+
+  const sourceIndex = rows.findIndex((row) => row.id === rowId);
+  if (sourceIndex < 0) return;
+
+  const row = rows[sourceIndex];
+  const rowHeight = getRowHeight(row);
+  const rowTop = getRowTopByIndex(rows, sourceIndex);
+  const relativeY = getBodyRelativeY(e.clientY);
+
+  rowDragState.value = {
+    active: true,
+    rowId,
+    row,
+    sourceIndex,
+    targetIndex: sourceIndex,
+    pointerOffsetY: clamp(relativeY - rowTop, 0, rowHeight),
+    ghostTop: rowTop,
+    ghostHeight: rowHeight,
+  };
+
+  emit('row-drag-start', { row });
+
+  window.addEventListener('mousemove', onRowDragMove);
+  window.addEventListener('mouseup', onRowDragUp);
+}
+
+onUnmounted(() => {
+  window.removeEventListener('mousemove', onRowDragMove);
+  window.removeEventListener('mouseup', onRowDragUp);
+});
+
 defineExpose({
   ...engine,
   setScrollLeft: (value: number) => {
@@ -365,6 +579,19 @@ defineExpose({
 .timeline-row-wrapper {
   border-bottom: 1px solid var(--timeline-border-color);
   position: relative;
+}
+
+.timeline-row-wrapper.is-row-drag-placeholder {
+  opacity: 0.22;
+}
+
+.timeline-row-ghost {
+  position: absolute;
+  left: 0;
+  z-index: 120;
+  opacity: 0.85;
+  pointer-events: none;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
 }
 
 .timeline-cursor {
